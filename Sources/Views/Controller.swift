@@ -51,38 +51,14 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
 
     // MARK: - Outlets
 
-    private lazy var cancelBarButtonItem: UIBarButtonItem = {
-        if let customButton = self.appearance.customCancelButton {
-            customButton.target = self
-            customButton.action = #selector(self.cancel)
-            return customButton
-        }
-
+    private lazy var backBarButton: UIBarButtonItem = {
         let barButtonItem = UIBarButtonItem(
-            title: self.appearance.cancelButtonTitle,
-            style: .plain,
-            target: self,
-            action: #selector(self.cancel)
-        )
-        barButtonItem.tintColor = self.appearance.barButtonItemsColor
-        return barButtonItem
-    }()
-
-    private lazy var doneBarButtonItem: UIBarButtonItem = {
-        if let customButton = self.appearance.customDoneButton {
-            customButton.target = self
-            customButton.action = #selector(self.done)
-            return customButton
-        }
-
-        let barButtonItem = UIBarButtonItem(
-            title: self.appearance.doneButtonTitle,
-            style: .done,
-            target: self,
-            action: #selector(self.done)
-        )
-        barButtonItem.tintColor = self.appearance.barButtonItemsColor
-        barButtonItem.isEnabled = self.allowToChooseNilDate
+            image: UIImage(
+                named: "back_arrow_icon")?.withTintColor(UIColor(red: 0.28, green: 0.27, blue: 0.33, alpha: 1),
+                renderingMode: .alwaysOriginal),
+            style: .plain, target: self,
+            action: #selector(didBackButtonTapped))
+        
         return barButtonItem
     }()
 
@@ -95,57 +71,32 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
         monthView.minimumLineSpacing = 2
         monthView.minimumInteritemSpacing = 0
         monthView.showsVerticalScrollIndicator = false
-        monthView.cellSize = 46
+        monthView.cellSize = 51
         monthView.allowsMultipleSelection = Value.mode == .range
         monthView.allowsRangedSelection = true
         monthView.rangeSelectionMode = .continuous
         monthView.contentInsetAdjustmentBehavior = .always
         return monthView
     }()
-
-    private lazy var weekView: WeekView = {
-        let view = WeekView(calendar: self.config.calendar, config: self.config.weekView)
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
+    
+    private let topDividerView: UIView = {
+        let obj = UIView()
+        obj.backgroundColor = UIColor(red: 0.45, green: 0.44, blue: 0.51, alpha: 0.2)
+        obj.translatesAutoresizingMaskIntoConstraints = false
+        return obj
     }()
-
-    private lazy var currentValueView: CurrentValueView<Value> = {
-        let view = CurrentValueView<Value>(config: self.config.currentValueView)
-        view.currentValue = self.value
-        view.translatesAutoresizingMaskIntoConstraints = false
-        view.onClear = { [weak self] in
-            guard let self else { return }
-            self.value = nil
-            self.viewConfigs.removeAll()
-            self.calendarView.deselectAllDates()
-            self.calendarView.visibleDates { segment in
-                UIView.performWithoutAnimation {
-                    self.calendarView.reloadItems(at: (segment.outdates + segment.indates).map(\.indexPath))
-                }
-            }
-        }
-        return view
-    }()
-
-    private lazy var shortcutContainerView: ShortcutContainerView<Value> = {
-        let view = ShortcutContainerView<Value>(
-            config: self.config.shortcutContainerView,
-            itemConfig: self.config.shortcutItemView,
-            shortcuts: self.shortcuts
-        )
-        view.translatesAutoresizingMaskIntoConstraints = false
-        if let value = self.value {
-            view.selectedShortcut = self.shortcuts.first(where: { $0.isEqual(to: value) })
-        }
-        view.onSelect = { [weak self] selectedShortcut in
-            guard let self else { return }
-            let newValue = selectedShortcut.action()
-            if !newValue.outOfRange(minDate: self.privateMinimumDate, maxDate: self.privateMaximumDate) {
-                self.value = newValue
-                self.selectValue(newValue, in: self.calendarView)
-            }
-        }
-        return view
+    
+    let applyButton: UIButton = {
+        let title = NSAttributedString(string: NSLocalizedString("action_apply_title", comment: ""), attributes: [
+            .font: UIFont.manrope(ofSize: 14, weight: .semiBold),
+            .foregroundColor: UIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+        ])
+        let obj = UIButton(type: .system)
+        obj.backgroundColor = UIColor(red: 0.28, green: 0.27, blue: 0.33, alpha: 1)
+        obj.layer.cornerRadius = 26
+        obj.setAttributedTitle(title, for: .normal)
+        obj.translatesAutoresizingMaskIntoConstraints = false
+        return obj
     }()
 
     // MARK: - Variables
@@ -154,38 +105,14 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
     private var appearance: FastisConfig.Controller = FastisConfig.default.controller
     private let dayCellReuseIdentifier = "DayCellReuseIdentifier"
     private let monthHeaderReuseIdentifier = "MonthHeaderReuseIdentifier"
+    private let monthFooterReuseIdentifier = "MonthFooterReuseIdentifier"
     private var viewConfigs: [IndexPath: DayCell.ViewConfig] = [:]
     private var privateMinimumDate: Date?
     private var privateMaximumDate: Date?
     private var privateSelectMonthOnHeaderTap = false
     private var dayFormatter = DateFormatter()
-    private var value: Value? {
-        didSet {
-            self.updateSelectedShortcut()
-            self.currentValueView.currentValue = self.value
-            self.doneBarButtonItem.isEnabled = self.allowToChooseNilDate || self.value != nil
-        }
-    }
-
-    /**
-     Shortcuts array
-
-     You can use prepared shortcuts depending on the current mode.
-
-     - For `.single` mode: `.today`, `.tomorrow`, `.yesterday`
-     - For `.range` mode: `.today`, `.lastWeek`, `.lastMonth`
-
-     Or you can create your own shortcuts:
-
-     ```
-     var customShortcut = FastisShortcut(name: "Today") {
-         let now = Date()
-         return FastisRange(from: now.startOfDay(), to: now.endOfDay())
-     }
-     ```
-     */
-    public var shortcuts: [FastisShortcut<Value>] = []
-
+    private var value: Value?
+    
     /**
      Allow to choose `nil` date
 
@@ -250,6 +177,7 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
         self.dayFormatter.locale = config.calendar.locale
         self.dayFormatter.dateFormat = "d"
         super.init(nibName: nil, bundle: nil)
+        self.applyButton.addTarget(self, action: #selector(done), for: .touchUpInside)
     }
 
     @available(*, unavailable)
@@ -273,25 +201,13 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
         - flag: Pass true to animate the presentation; otherwise, pass false.
         - completion: The block to execute after the presentation finishes. This block has no return value and takes no parameters. You may specify nil for this parameter.
      */
-    public func present(above viewController: UIViewController, animated flag: Bool = true, completion: (() -> Void)? = nil) {
-        let navVc = UINavigationController(rootViewController: self)
-        navVc.modalPresentationStyle = .formSheet
-        if viewController.preferredContentSize != .zero {
-            navVc.preferredContentSize = viewController.preferredContentSize
-        } else {
-            navVc.preferredContentSize = CGSize(width: 445, height: 550)
-        }
-
-        viewController.present(navVc, animated: flag, completion: completion)
-    }
 
     // MARK: - Configuration
 
     private func configureUI() {
         self.view.backgroundColor = self.appearance.backgroundColor
         self.navigationItem.largeTitleDisplayMode = .never
-        self.navigationItem.leftBarButtonItem = self.cancelBarButtonItem
-        self.navigationItem.rightBarButtonItem = self.doneBarButtonItem
+        self.navigationItem.leftBarButtonItem = self.backBarButton
     }
 
     private func configureSubviews() {
@@ -301,46 +217,37 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
             forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
             withReuseIdentifier: self.monthHeaderReuseIdentifier
         )
-        self.view.addSubview(self.currentValueView)
-        self.view.addSubview(self.weekView)
+        self.calendarView.register(
+            MonthFooter.self,
+            forSupplementaryViewOfKind: UICollectionView.elementKindSectionFooter,
+            withReuseIdentifier: self.monthFooterReuseIdentifier)
+
+        self.view.addSubview(self.applyButton)
+        self.view.addSubview(self.topDividerView)
         self.view.addSubview(self.calendarView)
-        if !self.shortcuts.isEmpty {
-            self.view.addSubview(self.shortcutContainerView)
-        }
     }
 
     private func configureConstraints() {
         NSLayoutConstraint.activate([
-            self.currentValueView.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor),
-            self.currentValueView.leftAnchor.constraint(equalTo: self.view.leftAnchor, constant: 12),
-            self.currentValueView.rightAnchor.constraint(equalTo: self.view.rightAnchor, constant: -12)
+            self.topDividerView.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor),
+            self.topDividerView.leftAnchor.constraint(equalTo: self.view.leftAnchor, constant: 30),
+            self.topDividerView.rightAnchor.constraint(equalTo: self.view.rightAnchor, constant: -30),
+            self.topDividerView.heightAnchor.constraint(equalToConstant: 1)
         ])
+
         NSLayoutConstraint.activate([
-            self.weekView.topAnchor.constraint(equalTo: self.currentValueView.bottomAnchor),
-            self.weekView.leftAnchor.constraint(equalTo: self.view.leftAnchor, constant: 12),
-            self.weekView.rightAnchor.constraint(equalTo: self.view.rightAnchor, constant: -12)
-        ])
-        if !self.shortcuts.isEmpty {
-            NSLayoutConstraint.activate([
-                self.shortcutContainerView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
-                self.shortcutContainerView.leftAnchor.constraint(equalTo: self.view.leftAnchor),
-                self.shortcutContainerView.rightAnchor.constraint(equalTo: self.view.rightAnchor)
-            ])
-        }
-        NSLayoutConstraint.activate([
-            self.calendarView.topAnchor.constraint(equalTo: self.weekView.bottomAnchor),
+            self.calendarView.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor, constant: 20),
             self.calendarView.leftAnchor.constraint(equalTo: self.view.leftAnchor, constant: 16),
             self.calendarView.rightAnchor.constraint(equalTo: self.view.rightAnchor, constant: -16)
         ])
-        if !self.shortcuts.isEmpty {
-            NSLayoutConstraint.activate([
-                self.calendarView.bottomAnchor.constraint(equalTo: self.shortcutContainerView.topAnchor)
-            ])
-        } else {
-            NSLayoutConstraint.activate([
-                self.calendarView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
-            ])
-        }
+        
+        NSLayoutConstraint.activate([
+            self.applyButton.topAnchor.constraint(equalTo: self.calendarView.bottomAnchor, constant: 13),
+            self.applyButton.leadingAnchor.constraint(equalTo: self.view.leadingAnchor, constant: 20),
+            self.applyButton.trailingAnchor.constraint(equalTo: self.view.trailingAnchor, constant: -20),
+            self.applyButton.bottomAnchor.constraint(equalTo: self.view.bottomAnchor, constant: -20),
+            self.applyButton.heightAnchor.constraint(equalToConstant: 59)
+        ])
     }
 
     private func configureInitialState() {
@@ -368,16 +275,13 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
             cell.configure(for: cachedConfig)
         } else {
             var newConfig = DayCell.makeViewConfig(
-                for: cellState,
+                date: date,
+                state: cellState,
                 minimumDate: self.privateMinimumDate,
                 maximumDate: self.privateMaximumDate,
                 rangeValue: self.value as? FastisRange,
                 calendar: self.config.calendar
             )
-
-            if newConfig.dateLabelText != nil {
-                newConfig.dateLabelText = self.dayFormatter.string(from: date)
-            }
 
             self.viewConfigs[indexPath] = newConfig
             cell.applyConfig(self.config)
@@ -387,26 +291,15 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
 
     // MARK: - Actions
 
-    private func updateSelectedShortcut() {
-        guard !self.shortcuts.isEmpty else { return }
-        if let value = self.value {
-            self.shortcutContainerView.selectedShortcut = self.shortcuts.first(where: { $0.isEqual(to: value) })
-        } else {
-            self.shortcutContainerView.selectedShortcut = nil
-        }
-    }
-
     @objc
-    private func cancel() {
-        self.navigationController?.dismiss(animated: true, completion: {
-            self.dismissHandler?()
-        })
+    private func didBackButtonTapped() {
+        self.navigationController?.popViewController(animated: true)
     }
 
     @objc
     private func done() {
         self.doneHandler?(self.value)
-        self.cancel()
+        self.didBackButtonTapped()
     }
 
     private func selectValue(_ value: Value?, in calendar: JTACMonthView) {
@@ -510,7 +403,7 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
         )
         return parameters
     }
-
+    
     public func calendar(
         _ calendar: JTACMonthView,
         headerViewForDateRange range: (start: Date, end: Date),

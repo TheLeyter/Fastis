@@ -12,12 +12,39 @@ import UIKit
 final class MonthHeader: JTACMonthReusableView {
 
     // MARK: - Outlets
-
+    private let dividerView: UIView = {
+        let obj = UIView()
+        obj.backgroundColor = UIColor(red: 0.45, green: 0.44, blue: 0.51, alpha: 1).withAlphaComponent(0.2)
+        obj.translatesAutoresizingMaskIntoConstraints = false
+        return obj
+    }()
+    
     private lazy var monthLabel: UILabel = {
         let label = UILabel()
         label.text = "Month name"
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
+    }()
+    
+    private let weekNamesStackView: UIStackView = {
+        let obj = UIStackView()
+        obj.axis = .horizontal
+        obj.backgroundColor = .clear
+        obj.distribution = .fillEqually
+        obj.translatesAutoresizingMaskIntoConstraints = false
+        return obj
+    }()
+    
+    private let selectMonthButton: UIButton = {
+        let title = NSAttributedString(string: "action_select_month".localized, attributes: [
+            .font: UIFont.manrope(ofSize: 14, weight: .semiBold),
+            .foregroundColor: UIColor(red: 0.45, green: 0.44, blue: 0.51, alpha: 1)
+        ])
+        
+        let obj = UIButton(type: .system)
+        obj.setAttributedTitle(title, for: .normal)
+        obj.translatesAutoresizingMaskIntoConstraints = false
+        return obj
     }()
 
     // MARK: - Variables
@@ -30,6 +57,7 @@ final class MonthHeader: JTACMonthReusableView {
     internal var calculatedHeight: CGFloat = 0
     internal var tapHandler: (() -> Void)?
     private lazy var monthFormatter = DateFormatter()
+    private let calendar = Calendar.current
 
     // MARK: - Lifecycle
 
@@ -38,8 +66,7 @@ final class MonthHeader: JTACMonthReusableView {
         self.configureSubviews()
         self.configureConstraints()
         self.applyConfig(FastisConfig.default.monthHeader)
-        let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.viewTapped))
-        self.addGestureRecognizer(tapRecognizer)
+        self.selectMonthButton.addTarget(self, action: #selector(didSelectMonthButtobTapped), for: .touchUpInside)
     }
 
     @available(*, unavailable)
@@ -50,17 +77,65 @@ final class MonthHeader: JTACMonthReusableView {
     // MARK: - Configuration
 
     private func configureSubviews() {
+        self.addSubview(self.dividerView)
         self.addSubview(self.monthLabel)
+        self.addSubview(self.selectMonthButton)
+        self.addSubview(self.weekNamesStackView)
+        calendar.shortWeekdaySymbols.enumerated().forEach { index, weekName in
+            weekNamesStackView.addArrangedSubview(
+                makeWeekLabel(
+                    for: weekName,
+                    index: index,
+                    count: calendar.shortWeekdaySymbols.count))
+        }
+    }
+    
+    private func makeWeekLabel(for symbol: String, index: Int, count: Int) -> UILabel {
+        let label = UILabel()
+        label.text = symbol.uppercased()
+        label.font = .manrope(ofSize: 13, weight: .regular)
+        label.textColor = UIColor(red: 0.65, green: 0.64, blue: 0.67, alpha: 1)
+        if index == 0 {
+            label.textAlignment = .left
+        } else if index == count-1 {
+            label.textAlignment = .right
+        } else {
+            label.textAlignment = .center
+        }
+        return label
     }
 
     private func configureConstraints() {
         self.leftAnchorConstraint = self.monthLabel.leftAnchor.constraint(equalTo: self.leftAnchor)
-        self.rightAnchorConstraint = self.monthLabel.rightAnchor.constraint(equalTo: self.rightAnchor)
+        self.rightAnchorConstraint = self.selectMonthButton.rightAnchor.constraint(equalTo: self.rightAnchor)
         self.topAnchorConstraint = self.monthLabel.topAnchor.constraint(equalTo: self.topAnchor)
-        self.bottomAnchorConstraint = self.monthLabel.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+        self.bottomAnchorConstraint = self.weekNamesStackView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+        
         NSLayoutConstraint.activate([
-            self.leftAnchorConstraint, self.rightAnchorConstraint, self.topAnchorConstraint, self.bottomAnchorConstraint
+            self.monthLabel.rightAnchor.constraint(equalTo: self.selectMonthButton.leftAnchor),
+            self.leftAnchorConstraint,
+            self.topAnchorConstraint
         ].compactMap({ $0 }))
+        
+        NSLayoutConstraint.activate([
+            self.weekNamesStackView.leftAnchor.constraint(equalTo: self.monthLabel.leftAnchor),
+            self.weekNamesStackView.rightAnchor.constraint(equalTo: self.selectMonthButton.rightAnchor),
+            self.weekNamesStackView.topAnchor.constraint(equalTo: self.monthLabel.bottomAnchor, constant: 20),
+            self.weekNamesStackView.heightAnchor.constraint(equalToConstant: 20),
+            self.bottomAnchorConstraint
+        ].compactMap({$0}))
+        
+        NSLayoutConstraint.activate([
+            self.selectMonthButton.centerYAnchor.constraint(equalTo: self.monthLabel.centerYAnchor),
+            self.rightAnchorConstraint
+        ].compactMap({$0}))
+        
+        NSLayoutConstraint.activate([
+            self.dividerView.topAnchor.constraint(equalTo: self.topAnchor),
+            self.dividerView.leftAnchor.constraint(equalTo: self.leftAnchor, constant: 14),
+            self.dividerView.rightAnchor.constraint(equalTo: self.rightAnchor, constant: -14),
+            self.dividerView.heightAnchor.constraint(equalToConstant: 1),
+        ])
     }
 
     internal func configure(for date: Date) {
@@ -82,7 +157,7 @@ final class MonthHeader: JTACMonthReusableView {
     }
 
     @objc
-    private func viewTapped() {
+    private func didSelectMonthButtobTapped() {
         self.tapHandler?()
     }
 
@@ -123,7 +198,7 @@ public extension FastisConfig {
 
          Default value — `UIEdgeInsets(top: 24, left: 8, bottom: 4, right: 16)`
          */
-        public var insets = UIEdgeInsets(top: 24, left: 8, bottom: 4, right: 16)
+        public var insets = UIEdgeInsets(top: 20, left: 8, bottom: 20, right: 8)
 
         /**
          Format of displayed month value
@@ -144,7 +219,7 @@ public extension FastisConfig {
 
          Default value — `48pt`
          */
-        public var height = MonthSize(defaultSize: 48)
+        public var height = MonthSize(defaultSize: 104)
     }
 
 }

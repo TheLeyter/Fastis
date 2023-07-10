@@ -136,7 +136,8 @@ final class DayCell: JTACDayCell {
     }
 
     public static func makeViewConfig(
-        for state: CellState,
+        date: Date?,
+        state: CellState,
         minimumDate: Date?,
         maximumDate: Date?,
         rangeValue: FastisRange?,
@@ -187,7 +188,7 @@ final class DayCell: JTACDayCell {
             return config
         }
 
-        config.dateLabelText = state.text
+        config.date = state.date
 
         if let minimumDate, state.date < minimumDate.startOfDay() {
             config.isDateEnabled = false
@@ -263,7 +264,7 @@ final class DayCell: JTACDayCell {
     }
 
     struct ViewConfig {
-        var dateLabelText: String?
+        var date: Date?
         var isSelectedViewHidden = true
         var isDateEnabled = true
         var rangeView = RangeViewConfig()
@@ -272,12 +273,12 @@ final class DayCell: JTACDayCell {
     internal func configure(for config: ViewConfig) {
 
         self.selectionBackgroundView.isHidden = config.isSelectedViewHidden
-        self.isUserInteractionEnabled = config.dateLabelText != nil && config.isDateEnabled
-        self.clipsToBounds = config.dateLabelText == nil
+        self.isUserInteractionEnabled = config.date != nil && config.isDateEnabled
+        self.clipsToBounds = config.date == nil
 
-        if let dateLabelText = config.dateLabelText {
+        if let date = config.date {
             self.dateLabel.isHidden = false
-            self.dateLabel.text = dateLabelText
+            self.dateLabel.text = String(Calendar.current.component(.day, from: date))
             if !config.isDateEnabled {
                 self.dateLabel.textColor = self.config.dateLabelUnavailableColor
             } else if !config.isSelectedViewHidden {
@@ -286,6 +287,12 @@ final class DayCell: JTACDayCell {
                 self.dateLabel.textColor = self.config.onRangeLabelColor
             } else {
                 self.dateLabel.textColor = self.config.dateLabelColor
+            }
+            
+            if Calendar.current.isDateInToday(date) {
+                self.dateLabel.textColor = !config.isSelectedViewHidden
+                ? self.config.selectedLabelColor
+                : UIColor(red: 0.2, green: 0.73, blue: 0.71, alpha: 1)
             }
 
         } else {
@@ -367,7 +374,7 @@ public extension FastisConfig {
 
          Default value — `6pt`
          */
-        public var rangeViewCornerRadius: CGFloat = 6
+        public var rangeViewCornerRadius: CGFloat = 0
 
         /**
          Color of background of cell when date is a part of selected range
