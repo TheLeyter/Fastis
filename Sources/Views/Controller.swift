@@ -61,6 +61,17 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
         
         return barButtonItem
     }()
+    
+    private lazy var removeBarButton: UIBarButtonItem = {
+        let barButtonItem = UIBarButtonItem(
+            image: UIImage(
+                systemName: "trash.fill")?.withTintColor(UIColor(red: 0.28, green: 0.27, blue: 0.33, alpha: 1),
+                renderingMode: .alwaysOriginal),
+            style: .plain, target: self,
+            action: #selector(didRemoveButtonTapped))
+        
+        return barButtonItem
+    }()
 
     private lazy var calendarView: JTACMonthView = {
         let monthView = JTACMonthView()
@@ -178,6 +189,7 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
         self.dayFormatter.dateFormat = "d"
         super.init(nibName: nil, bundle: nil)
         self.applyButton.addTarget(self, action: #selector(done), for: .touchUpInside)
+//        calendarView.cachedConfiguration?.calendar.locale
     }
 
     @available(*, unavailable)
@@ -208,6 +220,7 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
         self.view.backgroundColor = self.appearance.backgroundColor
         self.navigationItem.largeTitleDisplayMode = .never
         self.navigationItem.leftBarButtonItem = self.backBarButton
+        self.navigationItem.rightBarButtonItem = self.removeBarButton
     }
 
     private func configureSubviews() {
@@ -294,6 +307,12 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
     @objc
     private func didBackButtonTapped() {
         self.navigationController?.popViewController(animated: true)
+    }
+    
+    @objc
+    private func didRemoveButtonTapped() {
+        calendarView.deselectAllDates()
+        self.value = nil
     }
 
     @objc
@@ -413,6 +432,7 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
             withReuseIdentifier: self.monthHeaderReuseIdentifier,
             for: indexPath
         ) as! MonthHeader
+        header.applyCalendar(self.config.calendar)
         header.applyConfig(self.config.monthHeader)
         header.configure(for: range.start)
         if self.privateSelectMonthOnHeaderTap, Value.mode == .range {
@@ -506,6 +526,10 @@ open class FastisController<Value: FastisValue>: UIViewController, JTACMonthView
 
     public func calendarSizeForMonths(_ calendar: JTACMonthView?) -> MonthSize? {
         self.config.monthHeader.height
+    }
+    
+    public func setDateRange(from: Date, to: Date) {
+        self.selectRange(FastisRange(from: from, to: to), in: calendarView)
     }
 
 }

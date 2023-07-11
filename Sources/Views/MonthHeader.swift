@@ -57,7 +57,7 @@ final class MonthHeader: JTACMonthReusableView {
     internal var calculatedHeight: CGFloat = 0
     internal var tapHandler: (() -> Void)?
     private lazy var monthFormatter = DateFormatter()
-    private let calendar = Calendar.current
+    private var calendar = Calendar.current
 
     // MARK: - Lifecycle
 
@@ -81,27 +81,28 @@ final class MonthHeader: JTACMonthReusableView {
         self.addSubview(self.monthLabel)
         self.addSubview(self.selectMonthButton)
         self.addSubview(self.weekNamesStackView)
-        calendar.shortWeekdaySymbols.enumerated().forEach { index, weekName in
-            weekNamesStackView.addArrangedSubview(
-                makeWeekLabel(
-                    for: weekName,
-                    index: index,
-                    count: calendar.shortWeekdaySymbols.count))
+    }
+    
+    private func setupWeeksNames() {
+        weekNamesStackView.arrangedSubviews.forEach { arrangedSubview in
+            arrangedSubview.removeFromSuperview()
+        }
+    
+        let numDays = self.calendar.shortStandaloneWeekdaySymbols.count
+        let first = self.calendar.firstWeekday - 1
+        let end = first + numDays - 1
+        let days = (first ... end).map({ self.calendar.shortStandaloneWeekdaySymbols[$0 % numDays] })
+        for weekdaySymbol in days {
+            self.weekNamesStackView.addArrangedSubview(self.makeWeekLabel(for: weekdaySymbol))
         }
     }
     
-    private func makeWeekLabel(for symbol: String, index: Int, count: Int) -> UILabel {
+    private func makeWeekLabel(for symbol: String) -> UILabel {
         let label = UILabel()
         label.text = symbol.uppercased()
         label.font = .manrope(ofSize: 13, weight: .regular)
         label.textColor = UIColor(red: 0.65, green: 0.64, blue: 0.67, alpha: 1)
-        if index == 0 {
-            label.textAlignment = .left
-        } else if index == count-1 {
-            label.textAlignment = .right
-        } else {
-            label.textAlignment = .center
-        }
+        label.textAlignment = .center
         return label
     }
 
@@ -144,6 +145,11 @@ final class MonthHeader: JTACMonthReusableView {
 
     // MARK: - Actions
 
+    internal func applyCalendar(_ calendar: Calendar) {
+        self.calendar = calendar
+        setupWeeksNames()
+    }
+    
     internal func applyConfig(_ config: FastisConfig.MonthHeader) {
         self.monthFormatter.dateFormat = config.monthFormat
         self.monthFormatter.locale = config.monthLocale
